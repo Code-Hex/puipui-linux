@@ -14,8 +14,7 @@ set -eu
 version=0.0.1
 
 srcdir="$PWD"
-target_arch="aarch64" # TODO: add x86_64
-#kernver=5.19.12
+target_arch="aarch64 x86_64"
 kernver=5.15.71
 busyboxver=1.35.0
 name="PUI PUI Linux"
@@ -39,10 +38,12 @@ fetch() {
 
 _kernelarch() {
 	local arch="$1"
-	case "$arch" in
-		aarch64*) arch="arm64" ;;
-	esac
-	echo "$arch"
+	if [ $arch == aarch64 ]; then
+		echo arm64
+	elif [ $arch == x86_64 ]; then
+		echo x86
+	else echo "Unknown TARGET $arch"; exit 1;
+	fi
 }
 
 _kconfig() {
@@ -59,6 +60,11 @@ _builddir() {
 _artifact() {
 	local arch="$1"
 	_builddir $arch "artifact"
+}
+
+_cross_compile_target() {
+	local arch="$1"
+	echo $arch-linux-gnu-
 }
 
 _prepareconfig() {
@@ -93,10 +99,11 @@ build_kern() {
 		fi
 
 		cd $(_builddir $_arch linux-kernel)
-		make ARCH="$(_kernelarch $_arch)" \
-			CC="${CC:-gcc}" \
+		make CROSS_COMPILE=$(_cross_compile_target $_arch) \
+			ARCH="$(_kernelarch $_arch)" \
 			AWK="${AWK:-mawk}" \
-			KBUILD_BUILD_VERSION="$version-PUI PUI!"
+			KBUILD_BUILD_VERSION="$version-PUI PUI!" \
+			-j $(nproc)
 
 		local artifactdir=$(_artifact $_arch)
 		mkdir -p $artifactdir
@@ -127,7 +134,10 @@ build_initramfs() {
 		# Change workspace to busybox target directory
 		cd $_builddir
 		sed -i "s|CONFIG_MODPROBE_SMALL=y|# CONFIG_MODPROBE_SMALL is not set|" .config
-		LDFLAGS=--static make CONFIG_PREFIX="$_fsdir" || exit 1
+		
+		LDFLAGS=--static make CROSS_COMPILE=$(_cross_compile_target $_arch) \
+			ARCH="$(_kernelarch $_arch)" \
+			CONFIG_PREFIX="$_fsdir" || exit 1
 		mkdir -p "$_fsdir"/bin
 		install -Dm0755 busybox "$_fsdir"/bin
 		cd $_fsdir
