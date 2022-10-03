@@ -17,6 +17,7 @@ srcdir="$PWD"
 target_arch="aarch64" # TODO: add x86_64
 #kernver=5.19.12
 kernver=5.15.71
+busyboxver=1.35.0
 name="PUI PUI Linux"
 
 #if [ -z "$SOURCE_DATE_EPOCH" ]; then
@@ -29,9 +30,8 @@ usage() {
 	sed -En '/^#---help---/,/^#---help---/p' "$0" | sed -E 's/^# ?//; 1d;$d;'
 }
 
-fetch_kernel() {
-	# Download linux kernel
-	local url=https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-"$kernver".tar.xz
+fetch() {
+	local url="$1"
         local archive=${url##*/}
         (cd $srcdir && curl -OL $url)
         tar -xvf "$srcdir"/"$archive" -C "$srcdir"
@@ -50,10 +50,21 @@ _kconfig() {
 	echo "kconfig/$fname"
 }
 
+_builddir() {
+	local arch="$1"
+	local dirname="$2"
+	echo "$srcdir"/build-$arch/$dirname
+}
+
+_artifact() {
+	local arch="$1"
+	_builddir $arch "artifact"
+}
+
 _prepareconfig() {
 	local _arch="$1"
 	local _config=$(_kconfig $_arch.config)
-	local _builddir="$srcdir"/build-$_arch
+	local _builddir=$(_builddir $_arch linux-kernel)
 	mkdir -p "$_builddir"
 
 	cp "$srcdir"/$_config "$_builddir"/.config
@@ -64,7 +75,7 @@ _prepareconfig() {
 		olddefconfig
 }
 
-build() {
+build_kern() {
 	unset LDFLAGS
 	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
 	for _arch in $target_arch; do
@@ -72,11 +83,55 @@ build() {
 	done
 	for _arch in $target_arch; do
 		msg "Building $_arch $name kernel"
-		cd "$srcdir"/build-$_arch
+
+		# Target validation
+		if [ $_arch == aarch64 ]; then
+			VMLINUX=arch/arm64/boot/Image.gz
+		elif [ $_arch == x86_64 ]; then
+			VMLINUX=arch/x86/boot/bzImage
+		else echo "Unknown TARGET $_arch"; exit 1;
+		fi
+
+		cd $(_builddir $_arch linux-kernel)
 		make ARCH="$(_kernelarch $_arch)" \
 			CC="${CC:-gcc}" \
 			AWK="${AWK:-mawk}" \
 			KBUILD_BUILD_VERSION="$version-PUI PUI!"
+
+		local artifactdir=$(_artifact $_arch)
+		mkdir -p $artifactdir
+		cp "$VMLINUX" "$artifactdir"
+	done
+}
+
+build_initramfs() {
+	unset LDFLAGS
+
+	for _arch in $target_arch; do
+		msg "Building $_arch busybox and initramfs"
+
+		local _fsdir=$(_builddir $_arch fs)
+		local _builddir=$(_builddir $_arch busybox)
+
+		# Copy original fs to build target
+		cp -r "$srcdir"/fs $_fsdir
+
+		# Make build directory
+		mkdir -p $_builddir
+
+		make -C "$srcdir"/busybox-$busyboxver \
+			O="$_builddir" \
+			ARCH="$(_kernelarch $_arch)" \
+			defconfig
+
+		# Change workspace to busybox target directory
+		cd $_builddir
+		sed -i "s|CONFIG_MODPROBE_SMALL=y|# CONFIG_MODPROBE_SMALL is not set|" .config
+		LDFLAGS=--static make CONFIG_PREFIX="$_fsdir" || exit 1
+		mkdir -p "$_fsdir"/bin
+		install -Dm0755 busybox "$_fsdir"/bin
+		cd $_fsdir
+		find . | cpio -o -H newc | gzip -9 > $(_artifact $_arch)/initramfs.cpio.gz
 	done
 }
 
@@ -101,6 +156,8 @@ updateconfigs() {
 	done
 }
 
+
+
 while getopts ':uhv' OPTION; do
 	case "$OPTION" in
 		u) updateconfigs || true; exit 0;;
@@ -110,7 +167,14 @@ while getopts ':uhv' OPTION; do
 done
 
 if ! [ -d linux-"$kernver" ]; then
-	fetch_kernel
+	msg "Download linux kernel $kernver"
+	fetch "https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-${kernver}.tar.xz"
 fi
 
-build
+if ! [ -d busybox-"$busyboxver" ]; then
+	msg "Download busybox $busyboxver"
+	fetch "https://busybox.net/downloads/busybox-${busyboxver}.tar.bz2"
+fi
+
+build_kern
+build_initramfs
