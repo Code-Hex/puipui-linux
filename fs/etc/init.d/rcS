@@ -1,0 +1,9 @@
+#!/bin/sh
+
+echo 0 99999 > /proc/sys/net/ipv4/ping_group_range
+
+ifconfig lo 127.0.0.1
+ifconfig eth0 10.0.2.15
+route add default gw 10.0.2.2
+
+udhcpc
