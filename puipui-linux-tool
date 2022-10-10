@@ -64,7 +64,33 @@ _artifact() {
 
 _cross_compile_target() {
 	local arch="$1"
-	echo $arch-linux-gnu-
+	echo $arch-linux-musl-
+}
+
+_musl_path() {
+	local arch="$1"
+	local machine_arch="$(uname -m)"
+	if [ $arch == $machine_arch ]; then
+		echo $arch-linux-musl-native
+	else
+		echo $arch-linux-musl-cross
+	fi
+}
+
+setup_musl_path() {
+	local arch="$1"
+	local musl_path="$(_musl_path $arch)"
+	local musl_abs_path="$srcdir/$musl_path"
+	local musl_prefix="$arch-linux-musl-"
+	local machine_arch="$(uname -m)"
+	if [ "aarch64" == $machine_arch ]; then
+		fetch "https://github.com/Code-Hex/musl-cross-make-arm64/releases/download/v0.0.1/${musl_path}.tar.gz"
+		tar xvf "$musl_abs_path.tar.gz"
+	else
+		fetch "https://musl.cc/${musl_path}.tgz"
+		tar xvf "$musl_abs_path.tgz"
+		ln -s $musl_abs_path/bin/{strip,"${musl_prefix}strip"}
+	fi
 }
 
 _prepareconfig() {
@@ -73,9 +99,11 @@ _prepareconfig() {
 	local _builddir=$(_builddir $_arch linux-kernel)
 	mkdir -p "$_builddir"
 
+	local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 	cp "$srcdir"/$_config "$_builddir"/.config
 	msg "Configuring $name kernel ($_arch)"
 	make -C "$srcdir"/linux-$kernver \
+		CROSS_COMPILE=$(_cross_compile_target $_arch) \
 		O="$_builddir" \
 		ARCH="$(_kernelarch $_arch)" \
 		olddefconfig
@@ -98,6 +126,7 @@ build_kern() {
 		else echo "Unknown TARGET $_arch"; exit 1;
 		fi
 
+		local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 		cd $(_builddir $_arch linux-kernel)
 		make CROSS_COMPILE=$(_cross_compile_target $_arch) \
 			ARCH="$(_kernelarch $_arch)" \
@@ -124,20 +153,22 @@ build_initramfs() {
 		cp -r "$srcdir"/fs $_fsdir
 
 		# Make build directory
+		rm -rf $_builddir
 		mkdir -p $_builddir
 
+		local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 		make -C "$srcdir"/busybox-$busyboxver \
+			CROSS_COMPILE=$(_cross_compile_target $_arch) \
 			O="$_builddir" \
-			ARCH="$(_kernelarch $_arch)" \
 			defconfig
 
 		# Change workspace to busybox target directory
 		cd $_builddir
-		sed -i "s|CONFIG_MODPROBE_SMALL=y|# CONFIG_MODPROBE_SMALL is not set|" .config
-		
-		LDFLAGS=--static make CROSS_COMPILE=$(_cross_compile_target $_arch) \
+		make CROSS_COMPILE=$(_cross_compile_target $_arch) \
+			LDFLAGS="-static" \
 			ARCH="$(_kernelarch $_arch)" \
 			CONFIG_PREFIX="$_fsdir" || exit 1
+
 		mkdir -p "$_fsdir"/bin
 		install -Dm0755 busybox "$_fsdir"/bin
 		cd $_fsdir
@@ -149,7 +180,7 @@ updateconfigs() {
 	for _arch in $target_arch; do
 		msg "Update $name kernel config ($_arch)"
 		local _config=$(_kconfig $_arch.config)
-		local _builddir="$srcdir"/build-$_arch
+		local _builddir=$(_builddir $_arch linux-kernel)
 		mkdir -p "$_builddir"
 		local actions="listnewconfig oldconfig"
 		if ! [ -f "$_builddir"/.config ]; then
@@ -184,6 +215,17 @@ fi
 if ! [ -d busybox-"$busyboxver" ]; then
 	msg "Download busybox $busyboxver"
 	fetch "https://busybox.net/downloads/busybox-${busyboxver}.tar.bz2"
+fi
+
+
+if ! [ -d $(_musl_path "aarch64") ]; then
+	msg "Download aarch64-linux-musl"
+	setup_musl_path "aarch64"
+fi
+
+if ! [ -d $(_musl_path "x86_64") ]; then
+	msg "Download x86_64-linux-musl"
+	setup_musl_path "x86_64"
 fi
 
 build_kern
