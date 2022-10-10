@@ -2,3 +2,6 @@ build-*
 *.tar.xz
 linux-*
 busybox-*
+*-linux-musl-*
+*.tgz
+*.tar.gz
