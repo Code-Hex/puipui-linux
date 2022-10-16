@@ -150,7 +150,13 @@ build_initramfs() {
 		local _builddir=$(_builddir $_arch busybox)
 
 		# Copy original fs to build target
+		rm -rf $_fsdir
 		cp -r "$srcdir"/fs $_fsdir
+		mkdir -p "$_fsdir"/bin
+
+		# Install apk.static binary to bin directory
+		local _apk_tool_dir=$(_builddir $_arch apk_tool)
+		install -Dm0755 "$_apk_tool_dir"/apk.static "$_fsdir"/bin
 
 		# Make build directory
 		rm -rf $_builddir
@@ -169,10 +175,21 @@ build_initramfs() {
 			ARCH="$(_kernelarch $_arch)" \
 			CONFIG_PREFIX="$_fsdir" || exit 1
 
-		mkdir -p "$_fsdir"/bin
 		install -Dm0755 busybox "$_fsdir"/bin
 		cd $_fsdir
 		find . | cpio -o -H newc | gzip -9 > $(_artifact $_arch)/initramfs.cpio.gz
+	done
+}
+
+download_apk() {
+	for _arch in $target_arch; do
+		local _apk_tool_dir=$(_builddir $_arch apk_tool)
+		local _apk_tool_url="http://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v2.12.10/$(uname -m)/apk.static"
+
+		if ! [ -f "$_apk_tool_dir"/apk.static ]; then
+			mkdir -p $_apk_tool_dir
+			(cd $_apk_tool_dir && curl -OL $_apk_tool_url)
+		fi
 	done
 }
 
@@ -229,4 +246,5 @@ if ! [ -d $(_musl_path "x86_64") ]; then
 fi
 
 build_kern
+download_apk
 build_initramfs

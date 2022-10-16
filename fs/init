@@ -31,7 +31,7 @@ setup_inittab_console(){
 }
 
 busybox rm /init
-busybox mkdir -p /etc/network /etc/init.d /proc /root /sbin /sys /usr/bin /usr/sbin
+busybox mkdir -p /etc/network /etc/init.d /proc /root /sbin /sys /usr/bin /usr/sbin /tmp
 
 /bin/busybox --install -s
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
