@@ -17,6 +17,7 @@ srcdir="$PWD"
 target_arch="aarch64 x86_64"
 kernver=5.15.71
 busyboxver=1.35.0
+dropbearver=2022.82
 name="PUI PUI Linux"
 
 #if [ -z "$SOURCE_DATE_EPOCH" ]; then
@@ -154,6 +155,9 @@ build_initramfs() {
 		cp -r "$srcdir"/fs $_fsdir
 		mkdir -p "$_fsdir"/bin
 
+		# Install dropbear
+		install_dropbear $_arch $_fsdir
+
 		# Install apk.static binary to bin directory
 		local _apk_tool_dir=$(_builddir $_arch apk_tool)
 		install -Dm0755 "$_apk_tool_dir"/apk.static "$_fsdir"/bin
@@ -184,13 +188,36 @@ build_initramfs() {
 download_apk() {
 	for _arch in $target_arch; do
 		local _apk_tool_dir=$(_builddir $_arch apk_tool)
-		local _apk_tool_url="http://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v2.12.10/$(uname -m)/apk.static"
+		local _apk_tool_url="http://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v2.12.10/$_arch/apk.static"
 
 		if ! [ -f "$_apk_tool_dir"/apk.static ]; then
 			mkdir -p $_apk_tool_dir
 			(cd $_apk_tool_dir && curl -OL $_apk_tool_url)
 		fi
 	done
+}
+
+# install to fs on each arch
+install_dropbear() {
+	local _arch="$1"
+	local _fsdir="$2"
+
+	local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
+	local _target=$(_cross_compile_target $_arch)
+	local CC="${_target}cc"
+	local AR="${_target}ar"
+	local RANLIB="${_target}ranlib"
+	local STRIP="${_target}strip"
+	local _builddir=$(_builddir $_arch dropbear)
+	local _dropbear_src="$srcdir"/"dropbear-${dropbearver}"
+
+	mkdir -p "$_builddir"
+	(cd $_dropbear_src && ./configure --build=$_arch -prefix=$_fsdir --disable-zlib --enable-static --disable-loginfunc --disable-wtmp)
+
+	cd $_builddir
+	make -C $_dropbear_src \
+		CC=$CC AR=$AR RANLIB=$RANLIB STRIP=$STRIP \
+		PROGRAMS="dropbear" STATIC=1 clean strip install
 }
 
 updateconfigs() {
@@ -234,6 +261,10 @@ if ! [ -d busybox-"$busyboxver" ]; then
 	fetch "https://busybox.net/downloads/busybox-${busyboxver}.tar.bz2"
 fi
 
+if ! [ -d dropbear-"$dropbearver" ]; then
+	msg "Download dropbear $dropbearver"
+	fetch "https://matt.ucc.asn.au/dropbear/releases/dropbear-${dropbearver}.tar.bz2"
+fi
 
 if ! [ -d $(_musl_path "aarch64") ]; then
 	msg "Download aarch64-linux-musl"

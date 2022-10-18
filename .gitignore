@@ -2,6 +2,7 @@ build-*
 *.tar.xz
 linux-*
 busybox-*
+dropbear-*
 *-linux-musl-*
 *.tgz
 *.tar.gz

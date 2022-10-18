@@ -7,3 +7,7 @@ ifconfig eth0 10.0.2.15
 route add default gw 10.0.2.2
 
 udhcpc
+
+# Setup dropbear ssh
+touch /var/log/lastlog
+dropbear -R -I 60 -E > /var/log/dropbear 2>&1
