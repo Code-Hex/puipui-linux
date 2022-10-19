@@ -162,6 +162,14 @@ build_initramfs() {
 		local _apk_tool_dir=$(_builddir $_arch apk_tool)
 		install -Dm0755 "$_apk_tool_dir"/apk.static "$_fsdir"/bin
 
+		# Install static curl binary to bin directory
+		local _curl_tool_dir=$(_builddir $_arch curl)
+		install -Dm0755 "$_curl_tool_dir"/curl "$_fsdir"/bin
+
+		# Copy ca-certificates for using curl (https)
+		mkdir -p "$_fsdir"/etc/ssl/certs
+		cp /etc/ssl/certs/ca-certificates.crt "$_fsdir"/etc/ssl/certs
+
 		# Make build directory
 		rm -rf $_builddir
 		mkdir -p $_builddir
@@ -193,6 +201,20 @@ download_apk() {
 		if ! [ -f "$_apk_tool_dir"/apk.static ]; then
 			mkdir -p $_apk_tool_dir
 			(cd $_apk_tool_dir && curl -OL $_apk_tool_url)
+		fi
+	done
+}
+
+download_curl() {
+	local _mirror="https://github.com/moparisthebest/static-curl/releases/download/v7.85.0"
+	for _arch in $target_arch; do
+		local _curl_dir=$(_builddir $_arch curl)
+		local _target="curl-$([ $_arch == x86_64 ] && echo amd64 || echo aarch64)"
+		local _curl_url="$_mirror/$_target"
+
+		if ! [ -f "$_curl_dir"/"$_target" ]; then
+			mkdir -p $_curl_dir
+			(cd $_curl_dir && curl -OL $_curl_url && mv $_target curl)
 		fi
 	done
 }
@@ -278,4 +300,5 @@ fi
 
 build_kern
 download_apk
+download_curl
 build_initramfs
