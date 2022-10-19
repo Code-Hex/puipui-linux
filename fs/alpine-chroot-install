@@ -72,6 +72,8 @@ set -eu
 
 #=======================  C o n s t a n t s  =======================#
 
+: ${APK_TOOLS_URI:="https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v2.12.10/$(uname -m)/apk.static"}
+
 # Alpine APK keys for packages verification.
 ALPINE_KEYS='
 4a6a0840:MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1yHJxQgsHQREclQu4Ohe\nqxTxd1tHcNnvnQTu/UrTky8wWvgXT+jpveroeWWnzmsYlDI93eLI2ORakxb3gA2O\nQ0Ry4ws8vhaxLQGC74uQR5+/yYrLuTKydFzuPaS1dK19qJPXB8GMdmFOijnXX4SA\njixuHLe1WW7kZVtjL7nufvpXkWBGjsfrvskdNA/5MfxAeBbqPgaq0QMEfxMAn6/R\nL5kNepi/Vr4S39Xvf2DzWkTLEK8pcnjNkt9/aafhWqFVW7m3HCAII6h/qlQNQKSo\nGuH34Q8GsFG30izUENV9avY7hSLq7nggsvknlNBZtFUcmGoQrtx3FmyYsIC8/R+B\nywIDAQAB
@@ -270,7 +272,9 @@ fi
 mkdir -p "$CHROOT_DIR"
 cd "$CHROOT_DIR"
 
+(cd /bin && curl -OL $APK_TOOLS_URI)
 APK="/bin/apk.static"
+chmod +x "$APK"
 
 einfo "Installing Alpine Linux $ALPINE_BRANCH ($ARCH) into chroot"
 
