@@ -18,6 +18,7 @@ target_arch="aarch64 x86_64"
 kernver=5.15.71
 busyboxver=1.35.0
 dropbearver=2022.82
+socatver=1.7.4.3
 name="PUI PUI Linux"
 
 #if [ -z "$SOURCE_DATE_EPOCH" ]; then
@@ -158,6 +159,9 @@ build_initramfs() {
 		# Install dropbear
 		install_dropbear $_arch $_fsdir
 
+		# Install socat
+		install_socat $_arch $_fsdir
+
 		# Install static curl binary to bin directory
 		local _curl_tool_dir=$(_builddir $_arch curl)
 		install -Dm0755 "$_curl_tool_dir"/curl "$_fsdir"/bin
@@ -165,6 +169,9 @@ build_initramfs() {
 		# Copy ca-certificates for using curl (https)
 		mkdir -p "$_fsdir"/etc/ssl/certs
 		cp /etc/ssl/certs/ca-certificates.crt "$_fsdir"/etc/ssl/certs
+
+		# Remove man pages
+		rm -rf "$_fsdir"/usr/share/man
 
 		# Make build directory
 		rm -rf $_builddir
@@ -229,6 +236,42 @@ install_dropbear() {
 		PROGRAMS="dropbear" STATIC=1 clean strip install
 }
 
+install_socat() {
+	local _arch="$1"
+	local _fsdir="$2"
+
+	local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
+	local _target=$(_cross_compile_target $_arch)
+	local CC="${_target}cc"
+	local AR="${_target}ar"
+	local RANLIB="${_target}ranlib"
+	local STRIP="${_target}strip"
+	local _builddir=$(_builddir $_arch socat)
+	local _socat_src="$srcdir"/"socat-${socatver}"
+
+	mkdir -p "$_builddir"
+
+	# socat-1.7.4.3 - fdname.c:(.text+<snip>): undefined reference to getprotobynumber_r
+	# https://git.alpinelinux.org/aports/commit/main/socat/APKBUILD?id=5edc9195355ced3db991c1a7cda5648d52019b11
+	(
+		cd $_socat_src && \
+		sc_cv_getprotobynumber_r=2 CFLAGS="-static -Os -s" ./configure \
+			--build=$_arch     \
+			--prefix=$_fsdir   \
+			--disable-man      \
+			--disable-openssl  \
+			--disable-readline \
+			--disable-libwrap  \
+			--disable-sycls    \
+			--disable-fila
+	)
+
+	cd $_builddir
+	make -C $_socat_src \
+		CC=$CC AR=$AR RANLIB=$RANLIB STRIP=$STRIP \
+		clean strip install
+}
+
 updateconfigs() {
 	for _arch in $target_arch; do
 		msg "Update $name kernel config ($_arch)"
@@ -273,6 +316,11 @@ fi
 if ! [ -d dropbear-"$dropbearver" ]; then
 	msg "Download dropbear $dropbearver"
 	fetch "https://matt.ucc.asn.au/dropbear/releases/dropbear-${dropbearver}.tar.bz2"
+fi
+
+if ! [ -d socat-"$socatver" ]; then
+	msg "Download socat $socatver"
+	fetch "http://www.dest-unreach.org/socat/download/socat-${socatver}.tar.gz"
 fi
 
 if ! [ -d $(_musl_path "aarch64") ]; then

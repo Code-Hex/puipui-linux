@@ -3,6 +3,7 @@ build-*
 linux-*
 busybox-*
 dropbear-*
+socat-*
 *-linux-musl-*
 *.tgz
 *.tar.gz
