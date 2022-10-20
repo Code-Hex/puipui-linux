@@ -134,6 +134,8 @@ build_kern() {
 			ARCH="$(_kernelarch $_arch)" \
 			AWK="${AWK:-mawk}" \
 			KBUILD_BUILD_VERSION="$version-PUI PUI!" \
+			KBUILD_BUILD_HOST="molbuilder" \
+			KBUILD_BUILD_USER="codehex" \
 			-j $(nproc)
 
 		local artifactdir=$(_artifact $_arch)
@@ -269,7 +271,7 @@ install_socat() {
 	cd $_builddir
 	make -C $_socat_src \
 		CC=$CC AR=$AR RANLIB=$RANLIB STRIP=$STRIP \
-		clean strip install
+		clean install
 }
 
 updateconfigs() {
