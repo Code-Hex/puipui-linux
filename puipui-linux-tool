@@ -170,11 +170,14 @@ build_initramfs() {
 		rm -rf $_builddir
 		mkdir -p $_builddir
 
+
+		cp "$srcdir"/busybox_config/config "$_builddir"/.config
+
 		local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 		make -C "$srcdir"/busybox-$busyboxver \
 			CROSS_COMPILE=$(_cross_compile_target $_arch) \
 			O="$_builddir" \
-			defconfig
+			oldconfig
 
 		# Change workspace to busybox target directory
 		cd $_builddir
@@ -198,7 +201,7 @@ download_curl() {
 
 		if ! [ -f "$_curl_dir"/"$_target" ]; then
 			mkdir -p $_curl_dir
-			(cd $_curl_dir && curl -OL $_curl_url && mv $_target curl)
+			(cd $_curl_dir && curl -OL $_curl_url && cp $_target curl)
 		fi
 	done
 }
