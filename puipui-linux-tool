@@ -274,6 +274,14 @@ install_socat() {
 		clean install
 }
 
+pack_artifacts() {
+	for _arch in $target_arch; do
+		msg "Packing artifacts for $_arch"
+		local _artifactdir=$(_artifact $_arch)
+		tar -czvf "puipui_linux_v${version}_$_arch.tar.gz" -C $_artifactdir .
+	done
+}
+
 updateconfigs() {
 	for _arch in $target_arch; do
 		msg "Update $name kernel config ($_arch)"
@@ -338,3 +346,4 @@ fi
 build_kern
 download_curl
 build_initramfs
+pack_artifacts
