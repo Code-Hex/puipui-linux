@@ -275,6 +275,7 @@ install_socat() {
 }
 
 pack_artifacts() {
+	cd $srcdir
 	for _arch in $target_arch; do
 		msg "Packing artifacts for $_arch"
 		local _artifactdir=$(_artifact $_arch)
