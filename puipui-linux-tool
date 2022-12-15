@@ -17,7 +17,7 @@ srcdir="$PWD"
 target_arch="aarch64 x86_64"
 kernver=5.15.71
 busyboxver=1.35.0
-dropbearver=2022.82
+dropbearver=2022.83
 socatver=1.7.4.3
 name="PUI PUI Linux"
 
@@ -202,7 +202,7 @@ build_initramfs() {
 }
 
 download_curl() {
-	local _mirror="https://github.com/moparisthebest/static-curl/releases/download/v7.85.0"
+	local _mirror="https://github.com/moparisthebest/static-curl/releases/download/v7.86.0"
 	for _arch in $target_arch; do
 		local _curl_dir=$(_builddir $_arch curl)
 		local _target="curl-$([ $_arch == x86_64 ] && echo amd64 || echo aarch64)"
