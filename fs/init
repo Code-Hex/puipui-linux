@@ -1,5 +1,17 @@
 #!/bin/busybox sh
 
+parse_cmdline() {
+    local IFS=' '
+    local cmdline=$(cat /proc/cmdline)
+    for x in $cmdline; do
+        case $x in
+            vsock_port=*)
+                export VSOCK_PORT="${x#vsock_port=}"
+                ;;
+        esac
+    done
+}
+
 # Recursively resolve tty aliases like console or tty0
 list_console_devices() {
         if ! [ -e /sys/class/tty/$1/active ]; then
@@ -68,6 +80,11 @@ mount -t tmpfs -o nodev,nosuid,noexec shm /dev/shm
 hostname localhost
 echo 'root:passwd' | chpasswd
 
+parse_cmdline
 setup_inittab_console
+
+# Export VSOCK_PORT to the environment if not set
+: ${VSOCK_PORT:=2222}
+export VSOCK_PORT
 
 exec /linuxrc

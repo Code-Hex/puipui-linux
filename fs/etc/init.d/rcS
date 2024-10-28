@@ -20,6 +20,6 @@ touch /var/log/lastlog
 dropbear -R -I 60 -E > /var/log/dropbear 2>&1
 
 # Setup vsock server
-echo 'Run socat as vsock ssh proxyserver (port=2222)'
-socat VSOCK-LISTEN:2222,reuseaddr,fork TCP:127.0.0.1:22 > /var/log/vsock-server 2>&1 &
+echo "Run socat as vsock ssh proxyserver (port=${VSOCK_PORT})"
+socat VSOCK-LISTEN:${VSOCK_PORT},reuseaddr,fork TCP:127.0.0.1:22 > /var/log/vsock-server 2>&1 &
 

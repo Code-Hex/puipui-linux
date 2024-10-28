@@ -11,7 +11,7 @@
 
 set -eu
 
-version=1.0.1
+version=1.0.2
 
 srcdir="$PWD"
 target_arch="aarch64 x86_64"
