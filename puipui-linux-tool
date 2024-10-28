@@ -11,14 +11,14 @@
 
 set -eu
 
-version=0.0.2
+version=1.0.0
 
 srcdir="$PWD"
 target_arch="aarch64 x86_64"
-kernver=5.15.71
-busyboxver=1.35.0
-dropbearver=2022.83
-socatver=1.7.4.3
+kernver=6.11.5
+busyboxver=1.36.1
+dropbearver=2024.86
+socatver=1.8.0.1
 name="PUI PUI Linux"
 
 #if [ -z "$SOURCE_DATE_EPOCH" ]; then
@@ -86,7 +86,7 @@ setup_musl_path() {
 	local musl_prefix="$arch-linux-musl-"
 	local machine_arch="$(uname -m)"
 	if [ "aarch64" == $machine_arch ]; then
-		fetch "https://github.com/Code-Hex/musl-cross-make-arm64/releases/download/v0.0.1/${musl_path}.tar.gz"
+		fetch "https://github.com/Code-Hex/musl-cross-make-arm64/releases/download/v0.0.4/${musl_path}.tar.gz"
 		tar xvf "$musl_abs_path.tar.gz"
 	else
 		fetch "https://musl.cc/${musl_path}.tgz"
@@ -257,7 +257,7 @@ install_socat() {
 	# https://git.alpinelinux.org/aports/commit/main/socat/APKBUILD?id=5edc9195355ced3db991c1a7cda5648d52019b11
 	(
 		cd $_socat_src && \
-		sc_cv_getprotobynumber_r=2 CFLAGS="-static -Os -s" ./configure \
+		CFLAGS="-static -Os -s" ./configure \
 			--build=$_arch     \
 			--prefix=$_fsdir   \
 			--disable-man      \
@@ -265,7 +265,9 @@ install_socat() {
 			--disable-readline \
 			--disable-libwrap  \
 			--disable-sycls    \
-			--disable-fila
+			--disable-filan && \
+		sed -Ei 's/#define\s+HAVE_GETPROTOBYNUMBER_R.*/#define HAVE_GETPROTOBYNUMBER_R 0/' config.h && \
+		sed -Ei 's/#define\s+HAVE_(.*)64.*/#define HAVE_\164 0/' config.h
 	)
 
 	cd $_builddir
@@ -316,7 +318,7 @@ done
 
 if ! [ -d linux-"$kernver" ]; then
 	msg "Download linux kernel $kernver"
-	fetch "https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-${kernver}.tar.xz"
+	fetch "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${kernver}.tar.xz"
 fi
 
 if ! [ -d busybox-"$busyboxver" ]; then
