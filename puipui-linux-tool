@@ -15,7 +15,7 @@ version=1.0.3
 
 srcdir="$PWD"
 target_arch="aarch64 x86_64"
-kernver=6.11.5
+kernver=6.18.3
 busyboxver=1.36.1
 dropbearver=2024.86
 socatver=1.8.0.1
