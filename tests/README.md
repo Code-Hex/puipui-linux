@@ -18,6 +18,12 @@ docker run --rm --device /dev/vhost-vsock --security-opt seccomp=unconfined --se
   -v "$PWD:/workspace" puipui-tests
 ```
 
+The suite obtains missing x86_64-hosted toolchains from the pinned
+`musl-cc/musl.cc` GitHub mirror because musl.cc blocks Actions traffic.
+`tests/toolchains.sha256` pins hashes verified against the original musl.cc
+archives; extraction happens only after verification. Existing local toolchains
+are reused.
+
 The same command runs in `.github/workflows/test.yml`. It checks config
 stability, builds both architectures, checks config-update failure handling,
 and boots the resulting release archives with 256 MiB of RAM. VM checks cover
