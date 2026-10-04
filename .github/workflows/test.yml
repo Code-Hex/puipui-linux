@@ -1,0 +1,58 @@
+name: Build and test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  images:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, x86_64]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential flex bison bc perl pkg-config libelf-dev libssl-dev \
+            curl ca-certificates tar xz-utils bzip2 gzip cpio python3 \
+            qemu-system-x86 qemu-system-arm virtiofsd openssh-client sshpass
+      - name: Enable vsock transport
+        run: |
+          sudo modprobe vhost_vsock
+          sudo udevadm settle
+          sudo chmod a+rw /dev/vhost-vsock
+          python3 -c 'import os; os.close(os.open("/dev/vhost-vsock", os.O_RDWR))'
+      - name: Restore toolchain and kernel build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ matrix.arch }}-linux-musl-*/
+            build-${{ matrix.arch }}/linux-kernel/
+          key: kernel-${{ runner.os }}-26.04-${{ matrix.arch }}-${{ hashFiles('puipui-linux-tool', 'kconfig/*.config', 'tests/toolchains.sha256') }}
+      - name: Build and test image
+        run: bash tests/run.sh "${{ matrix.arch }}"
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: test-logs-${{ matrix.arch }}
+          path: build-tests/
+      - name: Upload tested images
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: puipui-images-${{ matrix.arch }}
+          path: puipui_linux_*.tar.gz
