@@ -15,7 +15,7 @@ version=1.0.3
 
 srcdir="$PWD"
 target_arch="aarch64 x86_64"
-kernver=6.18.3
+kernver=7.2.9
 busyboxver=1.36.1
 dropbearver=2024.86
 socatver=1.8.0.1
@@ -34,7 +34,7 @@ usage() {
 fetch() {
 	local url="$1"
         local archive=${url##*/}
-        (cd $srcdir && curl -OL $url)
+        (cd "$srcdir" && curl -fOL "$url")
         tar -xvf "$srcdir"/"$archive" -C "$srcdir"
 }
 
@@ -66,7 +66,7 @@ _artifact() {
 
 _cross_compile_target() {
 	local arch="$1"
-	echo $arch-linux-musl-
+	echo "$srcdir/$(_musl_path "$arch")/bin/$arch-linux-musl-"
 }
 
 _musl_path() {
@@ -85,14 +85,21 @@ setup_musl_path() {
 	local musl_abs_path="$srcdir/$musl_path"
 	local musl_prefix="$arch-linux-musl-"
 	local machine_arch="$(uname -m)"
-	if [ "aarch64" == $machine_arch ]; then
-		fetch "https://github.com/Code-Hex/musl-cross-make-arm64/releases/download/v0.0.4/${musl_path}.tar.gz"
-		tar xvf "$musl_abs_path.tar.gz"
-	else
-		fetch "https://musl.cc/${musl_path}.tgz"
-		tar xvf "$musl_abs_path.tgz"
-		ln -s $musl_abs_path/bin/{strip,"${musl_prefix}strip"}
+	if ! [ -d "$musl_abs_path" ]; then
+		msg "Download $musl_path"
+		if [ "aarch64" == $machine_arch ]; then
+			fetch "https://github.com/Code-Hex/musl-cross-make-arm64/releases/download/v0.0.4/${musl_path}.tar.gz"
+		else
+			fetch "https://musl.cc/${musl_path}.tgz"
+		fi
 	fi
+	# Native toolchains ship binutils without the target prefix.
+	local tool
+	for tool in ar as ld nm objcopy objdump ranlib readelf strip; do
+		if ! [ -e "$musl_abs_path/bin/${musl_prefix}${tool}" ]; then
+			ln -s "$tool" "$musl_abs_path/bin/${musl_prefix}${tool}"
+		fi
+	done
 }
 
 _prepareconfig() {
@@ -101,7 +108,6 @@ _prepareconfig() {
 	local _builddir=$(_builddir $_arch linux-kernel)
 	mkdir -p "$_builddir"
 
-	local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 	cp "$srcdir"/$_config "$_builddir"/.config
 	msg "Configuring $name kernel ($_arch)"
 	make -C "$srcdir"/linux-$kernver \
@@ -128,11 +134,10 @@ build_kern() {
 		else echo "Unknown TARGET $_arch"; exit 1;
 		fi
 
-		local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 		cd $(_builddir $_arch linux-kernel)
 		make CROSS_COMPILE=$(_cross_compile_target $_arch) \
 			ARCH="$(_kernelarch $_arch)" \
-			AWK="${AWK:-mawk}" \
+			AWK="${AWK:-awk}" \
 			KBUILD_BUILD_VERSION="$version-PUI PUI!" \
 			KBUILD_BUILD_HOST="molbuilder" \
 			KBUILD_BUILD_USER="codehex" \
@@ -182,7 +187,6 @@ build_initramfs() {
 
 		cp "$srcdir"/busybox_config/config "$_builddir"/.config
 
-		local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 		make -C "$srcdir"/busybox-$busyboxver \
 			CROSS_COMPILE=$(_cross_compile_target $_arch) \
 			O="$_builddir" \
@@ -220,7 +224,6 @@ install_dropbear() {
 	local _arch="$1"
 	local _fsdir="$2"
 
-	local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 	local _target=$(_cross_compile_target $_arch)
 	local CC="${_target}cc"
 	local AR="${_target}ar"
@@ -230,7 +233,9 @@ install_dropbear() {
 	local _dropbear_src="$srcdir"/"dropbear-${dropbearver}"
 
 	mkdir -p "$_builddir"
-	(cd $_dropbear_src && ./configure --build=$_arch -prefix=$_fsdir --disable-zlib --enable-static --disable-loginfunc --disable-wtmp)
+	(cd $_dropbear_src && CC="$CC" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" \
+		./configure --build="$(gcc -dumpmachine)" --host="$_arch-linux-musl" \
+		--prefix="$_fsdir" --disable-zlib --enable-static --disable-loginfunc --disable-wtmp)
 
 	cd $_builddir
 	make -C $_dropbear_src \
@@ -242,7 +247,6 @@ install_socat() {
 	local _arch="$1"
 	local _fsdir="$2"
 
-	local PATH="$srcdir/$(_musl_path $_arch)/bin:$PATH"
 	local _target=$(_cross_compile_target $_arch)
 	local CC="${_target}cc"
 	local AR="${_target}ar"
@@ -257,8 +261,10 @@ install_socat() {
 	# https://git.alpinelinux.org/aports/commit/main/socat/APKBUILD?id=5edc9195355ced3db991c1a7cda5648d52019b11
 	(
 		cd $_socat_src && \
+		CC="$CC" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" \
 		CFLAGS="-static -Os -s" ./configure \
-			--build=$_arch     \
+			--build="$(gcc -dumpmachine)" \
+			--host="$_arch-linux-musl" \
 			--prefix=$_fsdir   \
 			--disable-man      \
 			--disable-openssl  \
@@ -291,16 +297,15 @@ updateconfigs() {
 		local _config=$(_kconfig $_arch.config)
 		local _builddir=$(_builddir $_arch linux-kernel)
 		mkdir -p "$_builddir"
-		local actions="listnewconfig oldconfig"
 		if ! [ -f "$_builddir"/.config ]; then
 			cp "$srcdir"/$_config "$_builddir"/.config
-			actions="olddefconfig"
 			env | grep ^CONFIG_ >> "$_builddir"/.config || true
 		fi
 		make -j1 -C "$srcdir"/linux-$kernver \
+			CROSS_COMPILE=$(_cross_compile_target $_arch) \
 			O="$_builddir" \
 			ARCH="$(_kernelarch $_arch)" \
-			$actions savedefconfig
+			olddefconfig savedefconfig
 
 		cp "$_builddir"/defconfig "$srcdir"/$_config
 	done
@@ -308,9 +313,10 @@ updateconfigs() {
 
 
 
+update_only=false
 while getopts ':uhv' OPTION; do
 	case "$OPTION" in
-		u) updateconfigs || true; exit 0;;
+		u) update_only=true;;
 		h) usage; exit 0;;
 		v) echo "puipui-linux-tool $version"; exit 0;;
 	esac
@@ -318,7 +324,16 @@ done
 
 if ! [ -d linux-"$kernver" ]; then
 	msg "Download linux kernel $kernver"
-	fetch "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${kernver}.tar.xz"
+	fetch "https://cdn.kernel.org/pub/linux/kernel/v${kernver%%.*}.x/linux-${kernver}.tar.xz"
+fi
+
+for _arch in $target_arch; do
+	setup_musl_path "$_arch"
+done
+
+if $update_only; then
+	updateconfigs
+	exit 0
 fi
 
 if ! [ -d busybox-"$busyboxver" ]; then
@@ -334,16 +349,6 @@ fi
 if ! [ -d socat-"$socatver" ]; then
 	msg "Download socat $socatver"
 	fetch "http://www.dest-unreach.org/socat/download/socat-${socatver}.tar.gz"
-fi
-
-if ! [ -d $(_musl_path "aarch64") ]; then
-	msg "Download aarch64-linux-musl"
-	setup_musl_path "aarch64"
-fi
-
-if ! [ -d $(_musl_path "x86_64") ]; then
-	msg "Download x86_64-linux-musl"
-	setup_musl_path "x86_64"
 fi
 
 build_kern

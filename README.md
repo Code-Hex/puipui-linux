@@ -12,6 +12,9 @@ Since file size is very small in totally, I can do testing on the any CI with do
 
 ## Kernel
 
+The kernel is pinned to Linux **7.2.9** (stable). Both architectures use
+minimal configs in `kconfig/`; new kernel options take their upstream defaults.
+
 What's supported:
 
 - Internet
@@ -35,15 +38,27 @@ You can use it with other linux distributions.
 
 ### Build all
 
+Build on Linux with GCC/binutils, make, flex, bison, bc, Perl, pkg-config,
+libelf development headers, curl, tar, xz, bzip2, gzip and cpio installed.
+The script downloads the target musl toolchains separately from the host tools.
+
 ```
 $ ./puipui-linux-tool
 ```
 
 ### Update Kernel config
 
+Set `kernver` in `puipui-linux-tool`, then run:
+
 ```
 $ ./puipui-linux-tool -u
 ```
+
+This downloads the kernel source and missing toolchains, runs `olddefconfig`
+and `savedefconfig` for both architectures, and saves the minimal configs.
+An existing `build-{arch}/linux-kernel/.config` is preserved as the input;
+otherwise the checked-in config is used. Errors stop the command.
+Review the config diff, then build and boot both architectures.
 
 ## Hack
 

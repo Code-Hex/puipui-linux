@@ -12,7 +12,7 @@ This document provides comprehensive information about the PUI PUI Linux codebas
 
 ### Current Version
 - Tool Version: 1.0.3
-- Kernel Version: 6.11.5
+- Kernel Version: 7.2.9
 - BusyBox Version: 1.36.1
 - Dropbear Version: 2024.86
 - Socat Version: 1.8.0.1
@@ -153,7 +153,7 @@ These are gitignored along with downloaded source tarballs.
 **Kernel Configuration Management:**
 - Configs stored as defconfig format in `kconfig/{arch}.config`
 - Use `./puipui-linux-tool -u` to update configs
-- Process: `listnewconfig` → `oldconfig` → `savedefconfig`
+- Process: `olddefconfig` → `savedefconfig` (both target toolchains; failures stop the command)
 - Always use `olddefconfig` for non-interactive updates
 
 ### 2. Initramfs & Init System
@@ -387,7 +387,7 @@ git push -u origin <branch-name>
 
 ### Update to New Kernel Version
 
-1. Edit `puipui-linux-tool`: change `kernver=6.11.5` to new version
+1. Edit `puipui-linux-tool`: change `kernver=7.2.9` to new version
 2. Run `./puipui-linux-tool` - it will download new kernel
 3. May need to update configs: `./puipui-linux-tool -u`
 4. Test both architectures
