@@ -23,10 +23,6 @@ jobs:
         arch: [aarch64, x86_64]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Enable vsock transport
-        run: |
-          sudo modprobe vhost_vsock
-          sudo chmod a+rw /dev/vhost-vsock
       - name: Install test dependencies
         run: |
           sudo apt-get update
@@ -34,6 +30,12 @@ jobs:
             build-essential flex bison bc perl pkg-config libelf-dev libssl-dev \
             curl ca-certificates tar xz-utils bzip2 gzip cpio python3 \
             qemu-system-x86 qemu-system-arm virtiofsd openssh-client sshpass
+      - name: Enable vsock transport
+        run: |
+          sudo modprobe vhost_vsock
+          sudo udevadm settle
+          sudo chmod a+rw /dev/vhost-vsock
+          python3 -c 'import os; os.close(os.open("/dev/vhost-vsock", os.O_RDWR))'
       - name: Restore toolchain and kernel build
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
