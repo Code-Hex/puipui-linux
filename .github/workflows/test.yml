@@ -15,29 +15,42 @@ concurrency:
 
 jobs:
   images:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, x86_64]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Enable vsock transport
         run: |
           sudo modprobe vhost_vsock
           sudo chmod a+rw /dev/vhost-vsock
-      - name: Build test environment
-        run: docker build -t puipui-tests -f tests/Dockerfile .
-      - name: Build and test both images
+      - name: Install test dependencies
         run: |
-          docker run --rm --device /dev/vhost-vsock --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
-            --user "$(id -u):$(id -g)" \
-            -v /etc/passwd:/etc/passwd:ro -v "$PWD:/workspace" puipui-tests
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential flex bison bc perl pkg-config libelf-dev libssl-dev \
+            curl ca-certificates tar xz-utils bzip2 gzip cpio python3 \
+            qemu-system-x86 qemu-system-arm virtiofsd openssh-client sshpass
+      - name: Restore toolchain and kernel build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ${{ matrix.arch }}-linux-musl-*/
+            build-${{ matrix.arch }}/linux-kernel/
+          key: kernel-${{ runner.os }}-26.04-${{ matrix.arch }}-${{ hashFiles('puipui-linux-tool', 'kconfig/*.config', 'tests/toolchains.sha256') }}
+      - name: Build and test image
+        run: bash tests/run.sh "${{ matrix.arch }}"
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: test-logs
+          name: test-logs-${{ matrix.arch }}
           path: build-tests/
       - name: Upload tested images
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: puipui-images
+          name: puipui-images-${{ matrix.arch }}
           path: puipui_linux_*.tar.gz

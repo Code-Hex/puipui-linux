@@ -6,6 +6,7 @@
 # This script builds puipui linux kernel and it's initramfs.
 #
 # Options:
+#   -a Build only the specified architecture (aarch64 or x86_64).
 #   -u Only updates linux kernel config files. it does not build kernel or initramfs.
 #---help---
 
@@ -314,11 +315,17 @@ updateconfigs() {
 
 
 update_only=false
-while getopts ':uhv' OPTION; do
+while getopts ':a:uhv' OPTION; do
 	case "$OPTION" in
+		a)
+			case "$OPTARG" in
+				aarch64|x86_64) target_arch="$OPTARG";;
+				*) echo "Unsupported architecture: $OPTARG" >&2; exit 1;;
+			esac;;
 		u) update_only=true;;
 		h) usage; exit 0;;
 		v) echo "puipui-linux-tool $version"; exit 0;;
+		*) usage >&2; exit 1;;
 	esac
 done
 

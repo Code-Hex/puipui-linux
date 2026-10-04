@@ -1,23 +1,25 @@
 # Build and VM tests
 
-Run on an x86_64 Linux host with Docker and the `vhost_vsock` kernel module.
-Both guests use QEMU TCG, so KVM and nested virtualization are not required.
-The vsock device is required; a missing device fails the test. The test
-container disables Docker's default seccomp and AppArmor profiles because they
-block host `AF_VSOCK` sockets. Ubuntu 26.04 supplies virtiofsd with read-only
-export support. The read-only passwd mount lets OpenSSH resolve the host UID
-inside the container.
+Run directly on an x86_64 Linux host. CI uses Ubuntu 26.04; its virtiofsd
+supports read-only exports and UID/GID translation. Both guests use QEMU TCG,
+so KVM and nested virtualization are not required.
 
-From the repository root:
+On Ubuntu 26.04, install the dependencies and run from the repository root:
 
 ```sh
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+  build-essential flex bison bc perl pkg-config libelf-dev libssl-dev \
+  curl ca-certificates tar xz-utils bzip2 gzip cpio python3 \
+  qemu-system-x86 qemu-system-arm virtiofsd openssh-client sshpass
 sudo modprobe vhost_vsock
 sudo chmod a+rw /dev/vhost-vsock
-docker build -t puipui-tests -f tests/Dockerfile .
-docker run --rm --device /dev/vhost-vsock --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
-  --user "$(id -u):$(id -g)" \
-  -v /etc/passwd:/etc/passwd:ro -v "$PWD:/workspace" puipui-tests
+bash tests/run.sh
 ```
+
+To build and test only one architecture, use `bash tests/run.sh aarch64` or
+`bash tests/run.sh x86_64`. The build tool also accepts `-a aarch64` or
+`-a x86_64`; without it, both architectures are built as before.
 
 The suite obtains missing x86_64-hosted toolchains from the pinned
 `musl-cc/musl.cc` GitHub mirror because musl.cc blocks Actions traffic.
@@ -25,8 +27,13 @@ The suite obtains missing x86_64-hosted toolchains from the pinned
 archives; extraction happens only after verification. Existing local toolchains
 are reused.
 
-The same command runs in `.github/workflows/test.yml`. It checks config
-stability, builds both architectures, checks config-update failure handling,
+Actions runs each architecture on a separate runner in parallel and caches
+its toolchain and kernel build directory. The cache key includes the build
+script, kernel configs, and toolchain checksums. A cache hit still runs the
+build and all checks; it only avoids recompiling unchanged kernel objects.
+Userspace and release archives are rebuilt on every run.
+
+The suite checks config stability and config-update failure handling,
 and boots the resulting release archives with 256 MiB of RAM. VM checks cover
 the kernel version, DHCP, password SSH login, virtiofs read/write and read-only
 exports, console and RNG devices, the SSH banner over default/custom vsock
