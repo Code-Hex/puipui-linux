@@ -22,7 +22,7 @@ jobs:
       matrix:
         arch: [aarch64, x86_64]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Install test dependencies
         run: |
           sudo apt-get update
@@ -37,7 +37,7 @@ jobs:
           sudo chmod a+rw /dev/vhost-vsock
           python3 -c 'import os; os.close(os.open("/dev/vhost-vsock", os.O_RDWR))'
       - name: Restore toolchain and kernel build
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ matrix.arch }}-linux-musl-*/
@@ -47,12 +47,12 @@ jobs:
         run: bash tests/run.sh "${{ matrix.arch }}"
       - name: Upload diagnostics
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: test-logs-${{ matrix.arch }}
           path: build-tests/
       - name: Upload tested images
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: puipui-images-${{ matrix.arch }}
           path: puipui_linux_*.tar.gz
