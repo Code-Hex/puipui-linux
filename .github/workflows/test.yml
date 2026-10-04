@@ -29,7 +29,7 @@ jobs:
         run: |
           docker run --rm --device /dev/vhost-vsock --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
             --user "$(id -u):$(id -g)" \
-            -v "$PWD:/workspace" puipui-tests
+            -v /etc/passwd:/etc/passwd:ro -v "$PWD:/workspace" puipui-tests
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

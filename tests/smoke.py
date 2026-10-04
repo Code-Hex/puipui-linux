@@ -98,6 +98,7 @@ def main():
                     result = ssh("uname -r")
                 except subprocess.TimeoutExpired:
                     continue
+                (logs_dir / "ssh.log").write_text(result.stdout + result.stderr)
                 if result.returncode == 0:
                     if result.stdout.strip() != args.kernel_version:
                         raise RuntimeError(f"Unexpected kernel: {result.stdout}")

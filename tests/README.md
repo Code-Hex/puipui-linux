@@ -5,7 +5,8 @@ Both guests use QEMU TCG, so KVM and nested virtualization are not required.
 The vsock device is required; a missing device fails the test. The test
 container disables Docker's default seccomp and AppArmor profiles because they
 block host `AF_VSOCK` sockets. Ubuntu 26.04 supplies virtiofsd with read-only
-export support.
+export support. The read-only passwd mount lets OpenSSH resolve the host UID
+inside the container.
 
 From the repository root:
 
@@ -15,7 +16,7 @@ sudo chmod a+rw /dev/vhost-vsock
 docker build -t puipui-tests -f tests/Dockerfile .
 docker run --rm --device /dev/vhost-vsock --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
   --user "$(id -u):$(id -g)" \
-  -v "$PWD:/workspace" puipui-tests
+  -v /etc/passwd:/etc/passwd:ro -v "$PWD:/workspace" puipui-tests
 ```
 
 The suite obtains missing x86_64-hosted toolchains from the pinned
