@@ -17,7 +17,9 @@ minimal configs in `kconfig/`; new kernel options take their upstream defaults.
 
 What's supported:
 
-- Internet
+- IPv4 and IPv6 networking
+  - IPv4 DHCP
+  - IPv6 stateless address autoconfiguration (SLAAC)
 - VIRTIO (Virt device I/O)
   - virtio blk device
   - virtio console (via hvc drivers. e.g. `console=hvc0`)
@@ -25,6 +27,8 @@ What's supported:
   - af\_vsock
 
 ## Initramfs
+
+BusyBox includes IPv6 support and `ping6` for checking guest connectivity.
 
 Our initramfs has a very simple init system controlled by `fs/init` script on this repository root. this script will do:
 

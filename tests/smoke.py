@@ -42,7 +42,7 @@ def main():
                 ["sshpass", "-p", "passwd", "ssh", "-o", "StrictHostKeyChecking=no",
                  "-o", f"UserKnownHostsFile={work}/known_hosts", "-o", "ConnectTimeout=3",
                  "-p", str(port), "root@127.0.0.1", command],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True, text=True, timeout=30,
             )
 
         try:
@@ -82,7 +82,8 @@ def main():
                        "-numa", "node,memdev=mem", "-device", "virtio-serial-pci",
                        "-chardev", f"file,id=console,path={logs_dir}/console.log",
                        "-device", "virtconsole,chardev=console", "-netdev",
-                       f"user,id=net,hostfwd=tcp:127.0.0.1:{port}-:22",
+                       f"user,id=net,hostfwd=tcp:127.0.0.1:{port}-:22,"
+                       "ipv4=on,ipv6=on,ipv6-net=fd00:2::/64,ipv6-host=fd00:2::2",
                        "-device", "virtio-net-pci,netdev=net,romfile=",
                        "-device", "virtio-rng-pci", "-device", "virtio-balloon-pci",
                        "-device", f"vhost-vsock-pci,guest-cid={cid}"]
@@ -106,6 +107,26 @@ def main():
                 time.sleep(1)
             else:
                 raise RuntimeError(f"Guest SSH did not become ready; see {logs_dir}")
+            result = ssh('''set -eu
+attempt=0
+while [ "$attempt" -lt 10 ]; do
+    addresses=$(ip -6 addr show dev eth0)
+    routes=$(ip -6 route show)
+    if echo "$addresses" | grep 'inet6 fd00:2:' | grep 'scope global' | grep -v tentative >/dev/null &&
+       echo "$routes" | grep -q '^default via fe80:.* dev eth0'; then
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+echo "$addresses"
+echo "$routes"
+test "$attempt" -lt 10
+ping6 fd00:2::2
+''')
+            (logs_dir / "ipv6.log").write_text(result.stdout + result.stderr)
+            if result.returncode:
+                raise RuntimeError(f"Guest IPv6 checks failed; see {logs_dir}")
             result = ssh('''set -eu
 ip addr show eth0
 mkdir -p /mnt/rw /mnt/ro
@@ -138,7 +159,8 @@ test -c /dev/hwrng
             ssh("poweroff")
             if vm.wait(timeout=30) != 0:
                 raise RuntimeError("Guest shutdown failed")
-            print(f"{args.arch}: {args.kernel_version}, DHCP, SSH, virtiofs RW/RO, "
+            print(f"{args.arch}: {args.kernel_version}, IPv4 DHCP, IPv6 SLAAC/route/ping, "
+                  "SSH, virtiofs RW/RO, "
                   f"vsock {vsock_port}, poweroff: PASS", flush=True)
         finally:
             for process in reversed(processes):

@@ -35,11 +35,19 @@ Userspace and release archives are rebuilt on every run.
 
 The suite checks config stability and config-update failure handling,
 and boots the resulting release archives with 256 MiB of RAM. VM checks cover
-the kernel version, DHCP, password SSH login, virtiofs read/write and read-only
+the kernel version, IPv4 DHCP, IPv6 SLAAC, an IPv6 default route, password SSH
+login, virtiofs read/write and read-only
 exports, console and RNG devices, the SSH banner over default/custom vsock
 ports, and guest poweroff.
 
+QEMU user networking advertises `fd00:2::/64` and uses `fd00:2::2` as its IPv6
+router. The guest has up to 10 seconds to acquire a non-tentative global address
+and the default route, then runs `ping6 fd00:2::2`. BusyBox's minimal `ping6`
+exits after the first reply or its five-second timeout. These checks use only
+the local QEMU network, so they require no Internet access or upstream IPv6.
+
 Logs are written to `build-tests/`, including QEMU and guest console output.
+The IPv6 address, route and ping output are saved in `ipv6.log`.
 Actions uploads these logs even on failure and uploads the archives only after
 all tests pass. Source downloads and build directories remain available for
 local reruns. For an existing build, rerun one VM test with:
